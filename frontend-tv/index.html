@@ -250,36 +250,43 @@ function fitToScreen(){
 }
 var _fitRAF=null;
 // Decide o layout por aba: Matriz encolhe pra caber; Agora/Próximo rola sozinha.
+// IMPORTANTE: não reinicia o auto-scroll a cada render (o polling/WS recria o
+// conteúdo a cada 20s); preserva a posição para conseguir percorrer listas longas.
 function applyLayout(){
-  stopAutoScroll();
   var fit=document.getElementById('fit');
   if(!fit) return;
   if(view==='matrix'){
+    stopAutoScroll();
     fitToScreen();
   } else {
-    fit.style.width='100%'; fit.style.transform='none';
-    startAutoScroll();
+    fit.style.width='100%';
+    if(!_scroll.raf){ startAutoScroll(); }  // só inicia se ainda não estiver rolando
   }
 }
 // ── Auto-scroll da aba Agora/Próximo (translateY, sem barra; laço com pausas) ──
-var _scroll={raf:null,pos:0,dir:1,pause:0};
-function stopAutoScroll(){ if(_scroll.raf){cancelAnimationFrame(_scroll.raf);_scroll.raf=null;} _scroll.pos=0;_scroll.dir=1;_scroll.pause=0; }
+// Velocidade baseada em TEMPO real (px/seg), não em frames — assim a rolagem
+// é consistente mesmo em navegadores de TV/thin client que rodam abaixo de 60fps.
+var _scroll={raf:null,pos:0,dir:1,pauseUntil:0,last:0};
+function stopAutoScroll(){ if(_scroll.raf){cancelAnimationFrame(_scroll.raf);_scroll.raf=null;} _scroll={raf:null,pos:0,dir:1,pauseUntil:0,last:0}; }
 function startAutoScroll(){
   var body=document.getElementById('body'), fit=document.getElementById('fit');
   if(!body||!fit) return;
   var cs=getComputedStyle(body);
   var padV=(parseFloat(cs.paddingTop)||0)+(parseFloat(cs.paddingBottom)||0);
-  var SPEED=0.5;      // px por frame (~30px/s a 60fps) — leitura confortável
-  var PAUSE=150;      // frames de pausa nas pontas (~2.5s)
-  function step(){
+  var PX_PER_SEC=70;     // velocidade de rolagem (px/seg) — leitura confortável
+  var PAUSE_MS=2500;     // pausa nas pontas (topo e fim)
+  _scroll.last=0;
+  function step(ts){
+    if(!_scroll.last) _scroll.last=ts;
+    var dt=(ts-_scroll.last)/1000; _scroll.last=ts;
+    if(dt>0.25) dt=0.25;  // evita salto se a aba ficou suspensa
     var avail=body.clientHeight - padV;
     var over=fit.scrollHeight - avail;
-    if(over<=2){ fit.style.transform='none'; _scroll.pos=0; _scroll.raf=requestAnimationFrame(step); return; } // cabe: não rola
-    if(_scroll.pause>0){ _scroll.pause--; }
-    else {
-      _scroll.pos += _scroll.dir*SPEED;
-      if(_scroll.pos>=over){ _scroll.pos=over; _scroll.dir=-1; _scroll.pause=PAUSE; }
-      else if(_scroll.pos<=0){ _scroll.pos=0; _scroll.dir=1; _scroll.pause=PAUSE; }
+    if(over<=2){ fit.style.transform='none'; _scroll.pos=0; _scroll.raf=requestAnimationFrame(step); return; }
+    if(ts>=_scroll.pauseUntil){
+      _scroll.pos += _scroll.dir*PX_PER_SEC*dt;
+      if(_scroll.pos>=over){ _scroll.pos=over; _scroll.dir=-1; _scroll.pauseUntil=ts+PAUSE_MS; }
+      else if(_scroll.pos<=0){ _scroll.pos=0; _scroll.dir=1; _scroll.pauseUntil=ts+PAUSE_MS; }
     }
     fit.style.transform='translateY('+(-_scroll.pos)+'px)';
     _scroll.raf=requestAnimationFrame(step);
@@ -354,21 +361,6 @@ tick();
 fetch(rotaUrl()).then(function(r){return r.json();}).then(function(s){state=s;cache(s);render();}).catch(function(){});
 connect();
 setInterval(function(){fetch(rotaUrl()).then(function(r){return r.json();}).then(function(s){state=s;cache(s);render();}).catch(function(){});},20000);
-
-// Auto-scroll opcional para TVs sem interação (?autoscroll=1)
-(function(){
-  if(new URLSearchParams(location.search).get('autoscroll')!=='1') return;
-  var dir=1;
-  setInterval(function(){
-    var el=document.getElementById('body');
-    if(!el) return;
-    var max=el.scrollHeight-el.clientHeight;
-    if(max<=2) return;                 // nada a rolar
-    if(el.scrollTop>=max-1) dir=-1;    // chegou ao fim -> sobe
-    if(el.scrollTop<=0) dir=1;         // chegou ao topo -> desce
-    el.scrollBy({top:dir*1,behavior:'auto'});
-  }, 40);
-})();
 </script>
 </body>
 </html>
