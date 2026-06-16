@@ -1,0 +1,31 @@
+# Segredos e ambiente
+.env
+.env.*
+!.env.example
+backend/.env
+*.secret
+
+# Estado operacional / dados em runtime
+data/
+backend/data/
+*.log
+
+# Dependencias
+node_modules/
+backend/node_modules/
+
+# Componentes fora deste repo
+kiosk/
+kiosk-rpi/
+monitoring/
+scripts-windows/
+xibo/
+
+# Sistema/editor/build
+.DS_Store
+*.swp
+*.bak
+.vscode/
+.idea/
+*.tar.gz
+*.b64.txt
