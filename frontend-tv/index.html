@@ -218,10 +218,10 @@ function render(){
   document.getElementById('shiftTxt').textContent=((state.shift||'')+(state.date?' · '+state.date:''))||'Sem dados';
   document.getElementById('srcTxt').textContent='Fonte: '+(state.source||'—');
   if(state.lastUpdate){const d=new Date(state.lastUpdate);document.getElementById('updTxt').textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
-  const body=document.getElementById('body');
-  if(!state.blocks||state.blocks.length===0){body.innerHTML='<div class="empty-state"><div class="big">Aguardando rotação</div><div>Nenhum dado carregado da planilha ainda.</div></div>';return;}
-  document.getElementById('fit').innerHTML=view==='matrix'?renderMatrix():renderNowNext();
-  fitToScreen();}
+  var fitEl=document.getElementById('fit');
+  if(!state.blocks||state.blocks.length===0){stopAutoScroll();fitEl.style.transform='none';fitEl.style.width='100%';fitEl.innerHTML='<div class="empty-state"><div class="big">Aguardando rotação</div><div>Nenhum dado carregado da planilha ainda.</div></div>';return;}
+  fitEl.innerHTML=view==='matrix'?renderMatrix():renderNowNext();
+  applyLayout();}
 function renderMatrix(){
   _brandLogoShown={};
   return state.blocks.map(function(b){
@@ -249,16 +249,53 @@ function fitToScreen(){
   }
 }
 var _fitRAF=null;
-function scheduleFit(){ if(_fitRAF) cancelAnimationFrame(_fitRAF); _fitRAF=requestAnimationFrame(function(){ fitToScreen(); }); }
+// Decide o layout por aba: Matriz encolhe pra caber; Agora/Próximo rola sozinha.
+function applyLayout(){
+  stopAutoScroll();
+  var fit=document.getElementById('fit');
+  if(!fit) return;
+  if(view==='matrix'){
+    fitToScreen();
+  } else {
+    fit.style.width='100%'; fit.style.transform='none';
+    startAutoScroll();
+  }
+}
+// ── Auto-scroll da aba Agora/Próximo (translateY, sem barra; laço com pausas) ──
+var _scroll={raf:null,pos:0,dir:1,pause:0};
+function stopAutoScroll(){ if(_scroll.raf){cancelAnimationFrame(_scroll.raf);_scroll.raf=null;} _scroll.pos=0;_scroll.dir=1;_scroll.pause=0; }
+function startAutoScroll(){
+  var body=document.getElementById('body'), fit=document.getElementById('fit');
+  if(!body||!fit) return;
+  var cs=getComputedStyle(body);
+  var padV=(parseFloat(cs.paddingTop)||0)+(parseFloat(cs.paddingBottom)||0);
+  var SPEED=0.5;      // px por frame (~30px/s a 60fps) — leitura confortável
+  var PAUSE=150;      // frames de pausa nas pontas (~2.5s)
+  function step(){
+    var avail=body.clientHeight - padV;
+    var over=fit.scrollHeight - avail;
+    if(over<=2){ fit.style.transform='none'; _scroll.pos=0; _scroll.raf=requestAnimationFrame(step); return; } // cabe: não rola
+    if(_scroll.pause>0){ _scroll.pause--; }
+    else {
+      _scroll.pos += _scroll.dir*SPEED;
+      if(_scroll.pos>=over){ _scroll.pos=over; _scroll.dir=-1; _scroll.pause=PAUSE; }
+      else if(_scroll.pos<=0){ _scroll.pos=0; _scroll.dir=1; _scroll.pause=PAUSE; }
+    }
+    fit.style.transform='translateY('+(-_scroll.pos)+'px)';
+    _scroll.raf=requestAnimationFrame(step);
+  }
+  _scroll.raf=requestAnimationFrame(step);
+}
+function scheduleFit(){ if(_fitRAF) cancelAnimationFrame(_fitRAF); _fitRAF=requestAnimationFrame(function(){ applyLayout(); }); }
 window.addEventListener('resize', scheduleFit);
-window.addEventListener('orientationchange', function(){ setTimeout(fitToScreen,150); });
-window.addEventListener('load', function(){ fitToScreen(); setTimeout(fitToScreen,300); });
+window.addEventListener('orientationchange', function(){ setTimeout(applyLayout,150); });
+window.addEventListener('load', function(){ applyLayout(); setTimeout(applyLayout,300); });
 if(window.visualViewport){ window.visualViewport.addEventListener('resize', scheduleFit); }
 // reage a mudança de DPI/zoom (devicePixelRatio) via matchMedia dinâmico
 (function watchDPR(){
   if(!window.matchMedia) return;
   var mq=window.matchMedia('(resolution: '+window.devicePixelRatio+'dppx)');
-  var on=function(){ fitToScreen(); watchDPR(); };
+  var on=function(){ applyLayout(); watchDPR(); };
   try{ mq.addEventListener('change', on, {once:true}); }catch(e){ try{ mq.addListener(on); }catch(_){} }
 })();
 // recálculo após imagens (logos) carregarem, que mudam a altura
