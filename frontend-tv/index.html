@@ -43,7 +43,7 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:var(--bg);color:va
 .toggle{display:flex;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .toggle button{background:transparent;border:none;color:var(--text-dim);font-family:var(--disp);font-size:13px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:8px 16px;cursor:pointer;transition:.15s}
 .toggle button.active{background:var(--spin);color:#fff}
-.body{overflow:hidden;min-height:0;padding:16px 20px;position:relative}
+.body{overflow:hidden;min-height:0;padding:16px 20px;position:relative;display:flex;flex-direction:column;justify-content:flex-start}
 #fit{display:flex;flex-direction:column;gap:14px;transform-origin:top left}
 .brand-block{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;flex-shrink:0}
 .brand-bar{display:flex;align-items:center;gap:10px;padding:7px 16px;border-left:4px solid var(--brand,#888);background:var(--panel-2)}
@@ -238,10 +238,19 @@ function fitToScreen(){
   fit.style.width='100%'; fit.style.transform='none';
   var cs=getComputedStyle(body);
   var padV=(parseFloat(cs.paddingTop)||0)+(parseFloat(cs.paddingBottom)||0);
-  // mede em 2 passadas para convergir (overhead fixo de header/barras)
+  var avail=(body.clientHeight - padV) - 4;
+  var natural=fit.scrollHeight;
+  if(natural<=avail){
+    // cabe inteiro: centraliza verticalmente (evita faixa vazia embaixo na TV retrato)
+    body.style.justifyContent='center';
+    fit.style.width='100%'; fit.style.transform='none';
+    return;
+  }
+  // alto demais: ancora no topo e encolhe pra caber (2 passadas p/ convergir)
+  body.style.justifyContent='flex-start';
   for(var i=0;i<2;i++){
-    var avail=(body.clientHeight - padV) - 4;   // desconta padding + folga de 4px
-    var natural=fit.scrollHeight;
+    avail=(body.clientHeight - padV) - 4;   // desconta padding + folga de 4px
+    natural=fit.scrollHeight;
     if(natural<=avail){ fit.style.width='100%'; fit.style.transform='none'; return; }
     var scale=Math.max(avail/natural, 0.4);
     fit.style.width=(100/scale)+'%';
@@ -259,6 +268,7 @@ function applyLayout(){
     stopAutoScroll();
     fitToScreen();
   } else {
+    document.getElementById('body').style.justifyContent='flex-start';
     fit.style.width='100%';
     if(!_scroll.raf){ startAutoScroll(); }  // só inicia se ainda não estiver rolando
   }
@@ -296,7 +306,7 @@ function startAutoScroll(){
 function scheduleFit(){ if(_fitRAF) cancelAnimationFrame(_fitRAF); _fitRAF=requestAnimationFrame(function(){ applyLayout(); }); }
 window.addEventListener('resize', scheduleFit);
 window.addEventListener('orientationchange', function(){ setTimeout(applyLayout,150); });
-window.addEventListener('load', function(){ applyLayout(); setTimeout(applyLayout,300); });
+window.addEventListener('load', function(){ applyLayout(); setTimeout(applyLayout,300); setTimeout(applyLayout,1500); setTimeout(applyLayout,4000); });
 if(window.visualViewport){ window.visualViewport.addEventListener('resize', scheduleFit); }
 // reage a mudança de DPI/zoom (devicePixelRatio) via matchMedia dinâmico
 (function watchDPR(){
