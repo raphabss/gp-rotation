@@ -45,7 +45,8 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:var(--bg);color:va
 .toggle button.active{background:var(--spin);color:#fff}
 .body{overflow:hidden;min-height:0;padding:16px 20px;position:relative;display:flex;flex-direction:column;justify-content:flex-start}
 #fit{display:flex;flex-direction:column;gap:14px;transform-origin:top left}
-.brand-block{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;flex-shrink:0}
+.brand-block{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;flex-shrink:0;display:flex;flex-direction:column}
+.brand-block>.matrix{flex:1 1 auto}
 .brand-bar{display:flex;align-items:center;gap:10px;padding:7px 16px;border-left:4px solid var(--brand,#888);background:var(--panel-2)}
 .brand-bar .tag{font-family:var(--disp);font-size:15px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--brand,#fff)}
 .brand-bar .count{font-size:11px;color:var(--text-dim);letter-spacing:.04em}
@@ -219,7 +220,7 @@ function render(){
   document.getElementById('srcTxt').textContent='Fonte: '+(state.source||'—');
   if(state.lastUpdate){const d=new Date(state.lastUpdate);document.getElementById('updTxt').textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
   var fitEl=document.getElementById('fit');
-  if(!state.blocks||state.blocks.length===0){stopAutoScroll();fitEl.style.transform='none';fitEl.style.width='100%';fitEl.innerHTML='<div class="empty-state"><div class="big">Aguardando rotação</div><div>Nenhum dado carregado da planilha ainda.</div></div>';return;}
+  if(!state.blocks||state.blocks.length===0){stopAutoScroll();fitEl.style.transform='none';fitEl.style.width='100%';fitEl.style.height='';fitEl.innerHTML='<div class="empty-state"><div class="big">Aguardando rotação</div><div>Nenhum dado carregado da planilha ainda.</div></div>';return;}
   fitEl.innerHTML=view==='matrix'?renderMatrix():renderNowNext();
   applyLayout();}
 function renderMatrix(){
@@ -235,21 +236,32 @@ function renderMatrix(){
 function fitToScreen(){
   var body=document.getElementById('body'); var fit=document.getElementById('fit');
   if(!body||!fit) return;
-  fit.style.width='100%'; fit.style.transform='none';
+  fit.style.width='100%'; fit.style.transform='none'; fit.style.height='';
+  // limpa crescimento anterior dos blocos
+  var allb=fit.querySelectorAll('.brand-block');
+  for(var j=0;j<allb.length;j++){ allb[j].style.flexGrow=''; }
   var cs=getComputedStyle(body);
   var padV=(parseFloat(cs.paddingTop)||0)+(parseFloat(cs.paddingBottom)||0);
   var avail=(body.clientHeight - padV) - 4;
   var natural=fit.scrollHeight;
   if(natural<=avail){
-    // cabe inteiro: centraliza verticalmente (evita faixa vazia embaixo na TV retrato)
-    body.style.justifyContent='center';
-    fit.style.width='100%'; fit.style.transform='none';
+    // cabe: PREENCHE a altura distribuindo o espaço entre os blocos/linhas.
+    // Cada bloco cresce proporcional ao nº de linhas -> altura de linha uniforme.
+    body.style.justifyContent='flex-start';
+    fit.style.transform='none'; fit.style.width='100%';
+    fit.style.height=avail+'px';
+    var blocks=fit.querySelectorAll('.brand-block');
+    for(var i=0;i<blocks.length;i++){
+      var n=blocks[i].querySelectorAll('tbody tr').length||1;
+      blocks[i].style.flexGrow=String(n);
+    }
     return;
   }
   // alto demais: ancora no topo e encolhe pra caber (2 passadas p/ convergir)
+  fit.style.height='';
   body.style.justifyContent='flex-start';
-  for(var i=0;i<2;i++){
-    avail=(body.clientHeight - padV) - 4;   // desconta padding + folga de 4px
+  for(var k=0;k<2;k++){
+    avail=(body.clientHeight - padV) - 4;
     natural=fit.scrollHeight;
     if(natural<=avail){ fit.style.width='100%'; fit.style.transform='none'; return; }
     var scale=Math.max(avail/natural, 0.4);
@@ -269,7 +281,7 @@ function applyLayout(){
     fitToScreen();
   } else {
     document.getElementById('body').style.justifyContent='flex-start';
-    fit.style.width='100%';
+    fit.style.width='100%'; fit.style.height='';
     if(!_scroll.raf){ startAutoScroll(); }  // só inicia se ainda não estiver rolando
   }
 }
