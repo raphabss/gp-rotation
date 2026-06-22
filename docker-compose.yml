@@ -7,6 +7,7 @@ services:
     container_name: gp-rotation-app
     restart: unless-stopped
     environment:
+      - DATABASE_URL=${DATABASE_URL}
       - TZ=America/Sao_Paulo
       - NODE_ENV=production
       - PORT=3000
@@ -23,6 +24,7 @@ services:
       - ./data:/app/data
       - ./frontend-tv:/app/frontend-tv:ro
       - ./frontend-admin:/app/frontend-admin:ro
+      - ./frontend-consulta:/app/frontend-consulta:ro
     networks:
       - gp-net
     healthcheck:

@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Consulta de Mesas — Spin Gaming</title>
+<style>
+:root{
+  --bg:#070a0f; --panel:#0d131e; --panel-2:#111a28; --line:#1d2838;
+  --text:#eef2f7; --text-dim:#8a9bb0; --text-mut:#46566b;
+  --gold:#d4af37; --gold-soft:#e8cc7a; --spin:#7b6cf5; --spin-soft:#a99cff;
+  --green:#1faa59; --green-soft:#7fe0a5; --red:#e0556b;
+  --disp:'Segoe UI',system-ui,sans-serif; --body:'Segoe UI',system-ui,sans-serif; --mono:ui-monospace,'Cascadia Code',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100vw;height:100vh;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--body)}
+#app{height:100vh;display:flex;flex-direction:column}
+.top{display:flex;align-items:center;gap:16px;padding:24px 32px;border-bottom:1px solid var(--line)}
+.top img{height:42px}
+.top .t{font-size:20px;font-weight:700;letter-spacing:.02em}
+.top .t small{display:block;font-size:12px;color:var(--spin-soft);letter-spacing:.3em;text-transform:uppercase;margin-top:2px}
+.top .clk{margin-left:auto;text-align:right;font-family:var(--mono)}
+.top .clk .h{font-size:26px;font-weight:700}
+.top .clk .d{font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em}
+
+.stage{flex:1;display:flex;align-items:center;justify-content:center;padding:32px;position:relative}
+
+/* ---- estado: aguardando ---- */
+.wait{text-align:center;animation:fade .4s}
+.wait .icon{font-size:90px;margin-bottom:18px;opacity:.9}
+.wait h1{font-size:46px;font-weight:800;letter-spacing:.01em}
+.wait p{font-size:22px;color:var(--text-dim);margin-top:14px}
+.wait .pulse{margin-top:34px;display:inline-block;width:120px;height:4px;border-radius:4px;background:linear-gradient(90deg,transparent,var(--spin),transparent);background-size:200% 100%;animation:slide 1.6s infinite}
+
+/* ---- estado: resultado ---- */
+.res{width:100%;max-width:920px;animation:fade .35s}
+.res .gp{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:6px}
+.res .gp .nick{font-size:52px;font-weight:800;letter-spacing:.01em}
+.res .gp .name{font-size:24px;color:var(--text-dim)}
+.res .meta{display:flex;align-items:center;gap:12px;margin-bottom:26px}
+.res .brand{font-size:15px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:5px 14px;border-radius:30px;border:1px solid var(--line);background:var(--panel-2)}
+.res .breakwarn{font-size:17px;font-weight:700;color:#10141d;background:var(--gold);padding:7px 18px;border-radius:30px}
+
+.cards{display:flex;flex-direction:column;gap:16px}
+.card{display:flex;align-items:center;gap:24px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px 30px}
+.card.now{border-color:var(--green);background:rgba(31,170,89,.10)}
+.card .when{font-family:var(--mono);font-size:40px;font-weight:700;min-width:150px;color:var(--text-dim)}
+.card.now .when{color:var(--green-soft)}
+.card .arrow{font-size:28px;color:var(--text-mut)}
+.card .table{font-size:60px;font-weight:800;letter-spacing:.02em}
+.card .tag{margin-left:auto;font-size:15px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-mut)}
+.card.now .tag{color:var(--green-soft)}
+
+/* ---- estado: erro ---- */
+.err{text-align:center;animation:fade .35s}
+.err .icon{font-size:84px;margin-bottom:16px}
+.err h1{font-size:40px;font-weight:800}
+.err .gpn{font-size:24px;color:var(--gold-soft);margin-top:10px}
+.err p{font-size:22px;color:var(--text-dim);margin-top:14px}
+
+.foot{padding:14px 32px;border-top:1px solid var(--line);display:flex;justify-content:space-between;font-size:13px;color:var(--text-mut)}
+.foot .on{color:var(--green-soft)}
+.foot .on::before{content:'';display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-right:7px;vertical-align:middle}
+
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes slide{0%{background-position:200% 0}100%{background-position:-200% 0}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="top">
+    <img src="data:image/png;base64,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" alt="Spin Gaming">
+    <div class="t">CONSULTA DE MESAS<small>Spin Gaming</small></div>
+    <div class="clk"><div class="h" id="clk">--:--</div><div class="d" id="clkd"></div></div>
+  </div>
+  <div class="stage" id="stage"></div>
+  <div class="foot"><span class="on" id="status">Online</span><span id="term"></span></div>
+</div>
+
+<script>
+"use strict";
+// ===== Config =====
+var API = location.origin + "/api";
+var ENV = new URLSearchParams(location.search).get("env") === "qa" ? "qa" : "prod";
+var TERM = new URLSearchParams(location.search).get("term") || "";
+var RESET_MS = 10000;       // volta pra "passe seu cartão" após 10s
+var SCAN_GAP_MS = 120;      // teclas mais lentas que isso = digitação humana, ignora
+
+document.getElementById("term").textContent = TERM ? ("Terminal " + TERM) : "";
+
+// ===== Relógio =====
+function clock(){
+  var d = new Date();
+  var p = function(n){return (n<10?"0":"")+n;};
+  document.getElementById("clk").textContent = p(d.getHours())+":"+p(d.getMinutes());
+  var dias=["DOM","SEG","TER","QUA","QUI","SEX","SAB"];
+  var mes=["JAN","FEV","MAR","ABR","MAI","JUN","JUL","AGO","SET","OUT","NOV","DEZ"];
+  document.getElementById("clkd").textContent = dias[d.getDay()]+", "+d.getDate()+" "+mes[d.getMonth()];
+}
+clock(); setInterval(clock,1000);
+
+// ===== Telas =====
+var stage = document.getElementById("stage");
+var resetTimer = null;
+
+function showWait(){
+  if(resetTimer){clearTimeout(resetTimer);resetTimer=null;}
+  stage.innerHTML =
+    '<div class="wait">'+
+      '<div class="icon">\u{1F4F7}</div>'+
+      '<h1>Passe seu cart\u00e3o</h1>'+
+      '<p>Aproxime o cart\u00e3o do leitor para ver suas mesas</p>'+
+      '<div class="pulse"></div>'+
+    '</div>';
+}
+
+function showLoading(){
+  stage.innerHTML = '<div class="wait"><div class="icon">\u23F3</div><h1>Consultando...</h1></div>';
+}
+
+function esc(s){return String(s==null?"":s).replace(/[&<>]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c];});}
+
+function showResult(r){
+  var gp = r.gp || {};
+  var head =
+    '<div class="gp"><span class="nick">'+esc(gp.nick||gp.name||"GP")+'</span>'+
+      (gp.nick&&gp.name?'<span class="name">'+esc(gp.name)+'</span>':'')+'</div>'+
+    '<div class="meta">'+
+      (r.brand?'<span class="brand">'+esc(r.brand)+'</span>':'')+
+      (r.onBreak?'<span class="breakwarn">\u2615 Em break agora</span>':'')+
+    '</div>';
+
+  var cards = (r.tables||[]).map(function(t){
+    return '<div class="card'+(t.now?' now':'')+'">'+
+      '<span class="when">'+esc(t.when||"")+'</span>'+
+      '<span class="arrow">\u2192</span>'+
+      '<span class="table">'+esc(t.table)+'</span>'+
+      '<span class="tag">'+(t.now?"AGORA":"")+'</span>'+
+    '</div>';
+  }).join("");
+
+  if(!cards){
+    cards = '<div class="card"><span class="table">'+esc(r.message||"Sem mais mesas neste turno")+'</span></div>';
+  }
+
+  stage.innerHTML = '<div class="res">'+head+'<div class="cards">'+cards+'</div></div>';
+  scheduleReset();
+}
+
+function showError(r){
+  var gpn = (r.gp && (r.gp.nick||r.gp.name)) ? '<div class="gpn">'+esc(r.gp.nick||r.gp.name)+'</div>' : '';
+  var icon = r.reason==="unknown_card" ? "\u{1F6AB}" : "\u26A0\uFE0F";
+  stage.innerHTML =
+    '<div class="err"><div class="icon">'+icon+'</div>'+
+      '<h1>'+esc(r.message||"N\u00e3o foi poss\u00edvel consultar")+'</h1>'+
+      gpn+
+      '<p>Procure o seu Shift Leader</p>'+
+    '</div>';
+  scheduleReset();
+}
+
+function scheduleReset(){
+  if(resetTimer) clearTimeout(resetTimer);
+  resetTimer = setTimeout(showWait, RESET_MS);
+}
+
+// ===== Consulta =====
+function consultar(code){
+  showLoading();
+  fetch(API+"/lookup?code="+encodeURIComponent(code)+"&env="+ENV)
+    .then(function(r){return r.json();})
+    .then(function(r){
+      if(r && r.ok) showResult(r);
+      else showError(r||{message:"Erro na consulta"});
+    })
+    .catch(function(){ showError({message:"Sem conex\u00e3o com o servidor"}); });
+}
+
+// ===== Captura do leitor (keyboard wedge) =====
+// O leitor "digita" o código rápido e termina com Enter. Distinguimos de
+// digitação humana pela velocidade entre teclas.
+var buf = "";
+var lastT = 0;
+document.addEventListener("keydown", function(e){
+  var now = Date.now();
+  if(now - lastT > SCAN_GAP_MS) buf = "";   // pausa longa: recomeça o buffer
+  lastT = now;
+
+  if(e.key === "Enter"){
+    var code = buf.trim();
+    buf = "";
+    if(code.length >= 2) consultar(code);
+    e.preventDefault();
+    return;
+  }
+  // aceita caracteres "imprimíveis" de 1 char (números, letras, símbolos do código)
+  if(e.key && e.key.length === 1){ buf += e.key; }
+});
+
+showWait();
+</script>
+</body>
+</html>

@@ -207,6 +207,7 @@ input,select{font-family:inherit}
     <button class="tab on" data-tab="editor" onclick="setTab('editor')">Rotação</button>
     <button class="tab" data-tab="account" onclick="setTab('account')">Minha senha</button>
     <button class="tab" data-tab="users" id="tabUsers" onclick="setTab('users')" style="display:none">Usuários</button>
+    <button class="tab" data-tab="cards" id="tabCards" onclick="setTab('cards')" style="display:none">Cartões</button>
   </div>
 
   <div class="content">
@@ -244,6 +245,25 @@ input,select{font-family:inherit}
       </div>
       <table class="utable"><thead><tr><th>Nome</th><th>Usuário</th><th>Papel</th><th>Status</th><th style="text-align:right">Ações</th></tr></thead>
         <tbody id="usersBody"></tbody></table>
+    </div>
+
+    <!-- CARTÕES -->
+    <div id="viewCards" style="display:none">
+      <div class="toolbar-row">
+        <h3 style="font-family:var(--disp);font-size:18px;letter-spacing:.04em">Cartões dos GPs</h3>
+      </div>
+      <p style="color:var(--text-dim);font-size:13px;margin-bottom:16px">Associe o código de barras do cartão de cada GP. Clique no campo "Código" e <b>escaneie o cartão</b> — o leitor preenche sozinho. O nick deve bater com o que aparece na planilha.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:18px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px">
+        <div style="flex:1;min-width:140px"><label style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em">Código (escaneie)</label>
+          <input id="cardCode" placeholder="Passe o cartão ou digite" style="width:100%;margin-top:5px;padding:9px 12px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--mono)"></div>
+        <div style="flex:1;min-width:140px"><label style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em">Nick (planilha)</label>
+          <input id="cardNick" placeholder="BLAKE" style="width:100%;margin-top:5px;padding:9px 12px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;color:var(--text)"></div>
+        <div style="flex:1;min-width:140px"><label style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em">Nome (opcional)</label>
+          <input id="cardName" placeholder="Rafaella" style="width:100%;margin-top:5px;padding:9px 12px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;color:var(--text)"></div>
+        <button class="btn btn-primary btn-sm" style="width:auto" onclick="saveCard()">Salvar</button>
+      </div>
+      <table class="utable"><thead><tr><th>Código</th><th>Nick</th><th>Nome</th><th style="text-align:right">Ações</th></tr></thead>
+        <tbody id="cardsBody"></tbody></table>
     </div>
   </div>
 </div>
@@ -401,7 +421,7 @@ function enterApp(){
   document.getElementById('uName').textContent=me.name;
   document.getElementById('uRole').textContent=me.role==='admin'?'Administrador':'Shift Leader';
   document.getElementById('uAvatar').textContent=initials(me.name);
-  if(me.role==='admin'){ document.getElementById('tabUsers').style.display='block'; }
+  if(me.role==='admin'){ document.getElementById('tabUsers').style.display='block'; document.getElementById('tabCards').style.display='block'; }
   loadRotation(); connectWS();
 }
 
@@ -416,7 +436,9 @@ function setTab(t){ tab=t;
   document.getElementById('viewEditor').style.display=t==='editor'?'block':'none';
   document.getElementById('viewAccount').style.display=t==='account'?'block':'none';
   document.getElementById('viewUsers').style.display=t==='users'?'block':'none';
+  document.getElementById('viewCards').style.display=t==='cards'?'block':'none';
   if(t==='users') loadUsers();
+  if(t==='cards') loadCards();
 }
 function setMode(m){ mode=m;
   document.getElementById('mGrid').classList.toggle('on',m==='grid');
@@ -598,6 +620,52 @@ async function resetUser(u){ if(!confirm('Resetar a senha de '+u+' para Spin@123
 async function toggleBlock(u,b){ try{ await call('PATCH','/api/users/'+u,{blocked:b}); toast(b?'Usuário bloqueado':'Usuário desbloqueado','ok'); loadUsers(); }catch(e){toast(e.message,'err');} }
 async function delUser(u){ if(!confirm('Remover '+u+' definitivamente?'))return;
   try{ await call('DELETE','/api/users/'+u); toast('Usuário removido','ok'); loadUsers(); }catch(e){toast(e.message,'err');} }
+
+// ── Cartões (admin) ──
+function esch(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+async function loadCards(){
+  try{
+    var list=await call('GET','/api/cards');
+    var b=document.getElementById('cardsBody');
+    if(!list.length){ b.innerHTML='<tr><td colspan="4" style="color:var(--text-dim);text-align:center;padding:22px">Nenhum cartão cadastrado ainda.</td></tr>'; return; }
+    b.innerHTML=list.map(function(c){
+      return '<tr><td style="font-family:var(--mono)">'+esch(c.code)+'</td><td>'+esch(c.nick||'—')+'</td><td>'+esch(c.name||'—')+'</td>'+
+        '<td style="text-align:right"><button class="btn btn-sm" style="width:auto" onclick="editCard(\''+esch(c.code).replace(/'/g,"\\'")+'\',\''+esch(c.nick).replace(/'/g,"\\'")+'\',\''+esch(c.name).replace(/'/g,"\\'")+'\')">Editar</button> '+
+        '<button class="btn btn-danger btn-sm" style="width:auto" onclick="delCard(\''+esch(c.code).replace(/'/g,"\\'")+'\')">Remover</button></td></tr>';
+    }).join('');
+  }catch(e){ toast(e.message,'err'); }
+}
+function editCard(code,nick,name){
+  document.getElementById('cardCode').value=code;
+  document.getElementById('cardNick').value=nick==='—'?'':nick;
+  document.getElementById('cardName').value=name==='—'?'':name;
+  document.getElementById('cardNick').focus();
+}
+async function saveCard(){
+  var code=document.getElementById('cardCode').value.trim();
+  var nick=document.getElementById('cardNick').value.trim();
+  var name=document.getElementById('cardName').value.trim();
+  if(!code){ toast('Escaneie ou digite o código','err'); return; }
+  if(!nick && !name){ toast('Informe o nick do GP','err'); return; }
+  try{
+    await call('POST','/api/cards',{code:code,nick:nick,name:name});
+    toast('Cartão salvo','ok');
+    document.getElementById('cardCode').value='';
+    document.getElementById('cardNick').value='';
+    document.getElementById('cardName').value='';
+    document.getElementById('cardCode').focus();
+    loadCards();
+  }catch(e){ toast(e.message,'err'); }
+}
+async function delCard(code){
+  if(!confirm('Remover o cartão '+code+'?')) return;
+  try{ await call('DELETE','/api/cards/'+encodeURIComponent(code)); toast('Cartão removido','ok'); loadCards(); }catch(e){toast(e.message,'err');}
+}
+// Enter no campo Código pula pro Nick (o leitor termina em Enter)
+document.addEventListener('DOMContentLoaded',function(){
+  var cc=document.getElementById('cardCode');
+  if(cc) cc.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); document.getElementById('cardNick').focus(); }});
+});
 
 // ── WebSocket ──
 function connectWS(){

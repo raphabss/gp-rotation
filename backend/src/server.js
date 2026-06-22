@@ -17,6 +17,7 @@ const graphRouter = require('./routes/graph');
 const { makeRouter } = require('./routes/rotation');
 const authRouter = require('./routes/auth');
 const usersRouter = require('./routes/users');
+const { adminRouter: cardsAdminRouter, lookupRouter } = require('./routes/cards');
 
 const app = express();
 const server = http.createServer(app);
@@ -49,6 +50,10 @@ if (fs.existsSync(tvPath)) {
   app.use('/tv', express.static(tvPath));
   app.use('/qa/tv', express.static(tvPath));   // mesma TV, ambiente qa (detectado no front)
 }
+const consultaPath = process.env.CONSULTA_PATH || path.join(__dirname, '../frontend-consulta');
+if (fs.existsSync(consultaPath)) {
+  app.use('/consulta', express.static(consultaPath));
+}
 if (fs.existsSync(adminPath)) {
   app.use('/admin', express.static(adminPath));
 }
@@ -56,6 +61,8 @@ if (fs.existsSync(adminPath)) {
 // ─── Auth & Users ──────────────────────────────────────────────────────────
 app.use('/api/auth', authRouter);
 app.use('/api/users', usersRouter);
+app.use('/api/cards', cardsAdminRouter);
+app.use('/api/lookup', lookupRouter);
 
 // ─── Rotation (prod + qa) ────────────────────────────────────────────────────
 app.use('/api/rotation', makeRouter('prod'));
