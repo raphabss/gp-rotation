@@ -67,8 +67,6 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:var(--bg);color:va
 .cell.empty{color:#2a3340}
 .col-now{background:rgba(31,170,89,.13);box-shadow:inset 2px 0 0 #1faa59,inset -2px 0 0 #1faa59}
 .matrix thead th.col-now{color:#7fe0a5;background:rgba(31,170,89,.20)}
-.col-next{background:rgba(212,175,55,.10);box-shadow:inset 2px 0 0 var(--gold),inset -2px 0 0 var(--gold)}
-.matrix thead th.col-next{color:var(--gold-soft);background:rgba(212,175,55,.16)}
 .nn-wrap{display:flex;flex-direction:column;gap:14px;flex-shrink:0}
 .nn-block{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;flex-shrink:0}
 .nn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;padding:14px}
@@ -227,9 +225,9 @@ function renderMatrix(){
   _brandLogoShown={};
   return state.blocks.map(function(b){
     var color=BRAND_COLOR[b.brand]||'#888';var now=activeIdx(b.slots);
-    var head='<th class="gp-col">'+b.brand+'</th>'+b.slots.map(function(s,k){return '<th class="'+(k===now?'col-now':(k===now+1?'col-next':''))+'">'+s+'</th>';}).join('');
+    var head='<th class="gp-col">'+b.brand+'</th>'+b.slots.map(function(s,k){return '<th class="'+(k===now?'col-now':(''))+'">'+s+'</th>';}).join('');
     var rows=b.presenters.map(function(p){
-      var tds=p.cells.map(function(c,k){var cc=window.GP_COLORS.cellColor(b.brand,c);var st=cc?('background:'+cc.bg+';color:'+cc.fg):'';return '<td class="'+(k===now?'col-now':(k===now+1?'col-next':''))+'"><span class="cell '+cellClass(c)+'" style="'+st+'">'+cellTxt(c)+'</span></td>';}).join('');
+      var tds=p.cells.map(function(c,k){var cc=window.GP_COLORS.cellColor(b.brand,c);var st=cc?('background:'+cc.bg+';color:'+cc.fg):'';return '<td class="'+(k===now?'col-now':(''))+'"><span class="cell '+cellClass(c)+'" style="'+st+'">'+cellTxt(c)+'</span></td>';}).join('');
       return '<tr><td class="gp-col"><div class="gp-nick">'+(p.nick||p.name)+'</div>'+(p.nick&&p.name?'<div class="gp-name">'+p.name+'</div>':'')+'</td>'+tds+'</tr>';}).join('');
     return '<div class="brand-block" style="--brand:'+color+'"><div class="brand-bar"><span class="tag">'+b.brand+'</span><span class="count">'+b.presenters.length+' GPs · '+b.slots.length+' turnos</span>'+brandLogosHtml(b.brand)+'</div><table class="matrix"><thead><tr>'+head+'</tr></thead><tbody>'+rows+'</tbody></table></div>';
   }).join('');}
