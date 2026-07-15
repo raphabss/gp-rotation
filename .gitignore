@@ -1,31 +1,27 @@
-# Segredos e ambiente
+# segredos / config
 .env
-.env.*
+*.env
 !.env.example
-backend/.env
-*.secret
 
-# Estado operacional / dados em runtime
+# dados e PII (nunca versionar)
 data/
-backend/data/
-*.log
+*.cards.json
+*.xlsx
+report_staff.xlsx
 
-# Dependencias
+# artefatos
 node_modules/
-backend/node_modules/
-
-# Componentes fora deste repo
-kiosk/
-kiosk-rpi/
-monitoring/
-scripts-windows/
-xibo/
-
-# Sistema/editor/build
-.DS_Store
-*.swp
-*.bak
-.vscode/
-.idea/
+*.log
 *.tar.gz
+
+# backups gerados pelos patches/scripts
+*.bak
+*.bak-*
+
+.DS_Store
+/rotation.js
+frontend-tv/rotation.js
+*-old.py
+*-old2.py
 *.b64.txt
+sanitize-before-commit.sh

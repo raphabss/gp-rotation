@@ -1,0 +1,71 @@
+version: '3.9'
+
+# ============================================================
+#  Xibo CMS — Digital Signage
+#  Spin Gaming Brasil
+#
+#  Sobe em paralelo com o GP Rotation app.
+#  Acesse: http://IP-DO-LXC:8080 (Xibo CMS admin)
+#
+#  Configuração pós-deploy:
+#  1. Acesse http://IP-DO-LXC:8080, crie admin
+#  2. Adicione um Display (o ThinClient Windows com Xibo Player)
+#  3. Crie um Layout apontando para http://IP-DO-LXC/tv
+#  4. Publique e agende no Display
+# ============================================================
+
+services:
+
+  xibo-cms:
+    image: xibosignage/xibo-cms:release-4
+    container_name: xibo-cms
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      - MYSQL_HOST=xibo-db
+      - MYSQL_USER=xibo
+      - MYSQL_PASSWORD=${XIBO_DB_PASSWORD:?defina_no_env}
+      - MYSQL_DATABASE=xibo
+      - XIBO_SECRET_KEY=${XIBO_SECRET_KEY:?defina_no_env}
+      - CMS_SERVER_NAME=gp-rotation.spingaming.local
+    volumes:
+      - xibo-cms-data:/var/www/cms/library
+      - xibo-cms-backup:/var/www/backup
+    depends_on:
+      - xibo-db
+    networks:
+      - xibo-net
+
+  xibo-xmr:
+    image: xibosignage/xibo-xmr:release-4
+    container_name: xibo-xmr
+    restart: unless-stopped
+    ports:
+      - "9505:9505"  # ZMQ push port (Xibo Player connects here)
+    networks:
+      - xibo-net
+
+  xibo-db:
+    image: mysql:8.0
+    container_name: xibo-db
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=${XIBO_DB_ROOT_PASSWORD:?defina_no_env}
+      - MYSQL_DATABASE=xibo
+      - MYSQL_USER=xibo
+      - MYSQL_PASSWORD=${XIBO_DB_PASSWORD:?defina_no_env}
+    volumes:
+      - xibo-db-data:/var/lib/mysql
+    networks:
+      - xibo-net
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+volumes:
+  xibo-cms-data:
+  xibo-cms-backup:
+  xibo-db-data:
+
+networks:
+  xibo-net:
+    driver: bridge

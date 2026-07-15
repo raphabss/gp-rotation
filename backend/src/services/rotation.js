@@ -93,13 +93,21 @@ function isBlockHeader(row) {
   return detectBrand(row) !== null;
 }
 
+/**
+ * Uma linha "parece" cabeçalho de bloco quando contém a palavra do turno
+ * (Manhã/Tarde/Noite). Esse sinal só aparece nos cabeçalhos — linhas de GP,
+ * notas e células multi-mesa ("6131/6132") não o têm — então é seguro para
+ * distinguir um cabeçalho MAL PREENCHIDO (que falhou em isBlockHeader) de uma
+ * linha comum. Usado para transformar erro silencioso em warning visível.
+ */
+function looksLikeHeaderRow(row) {
+  return detectShift(row) !== null;
+}
+
 /** Linha de nota/legenda que deve ser ignorada. */
 function isNoteRow(row) {
   const first = s(row[0]);
   if (!first) {
-    // Sem nome na col 0: é nota apenas se não houver NENHUM dado de rotação
-    // na linha (mesa 61xx, B, X ou ALL). As linhas de Shuffler têm o nome
-    // deslocado e células ALL/B — não podem ser tratadas como nota.
     const hasRotationData = row.some(c => {
       const t = normalizeCell(c).type;
       return t === 'table' || t === 'break' || t === 'off' || t === 'all';
@@ -120,8 +128,6 @@ function normalizeCell(value) {
   if (up === 'X') return { type: 'off' };
   if (up === 'ALL') return { type: 'all' };
   if (TABLE_RE.test(v)) return { type: 'table', table: v };
-  // Multi-mesa: GP operando 2+ mesas ao mesmo tempo. Aceita separadores
-  // / , ; espaço e a conjunção "e" (ex.: "6131/6132", "6131 e 6132", "6133,6134").
   {
     const parts = v.split(/\s*(?:\/|,|;|\be\b|\s)+\s*/i).map(p => p.trim()).filter(Boolean);
     if (parts.length >= 2 && parts.every(p => TABLE_RE.test(p))) {
@@ -134,12 +140,6 @@ function normalizeCell(value) {
   return { type: 'text', value: v };
 }
 
-/**
- * Parser principal.
- * @param {Array<Array>} values - matriz de células (Graph usedRange.values ou xlsx)
- * @param {object} meta - { date, shift } opcionais para sobrepor o detectado
- * @returns {object} rotação estruturada
- */
 function parseRotation(values, meta = {}) {
   if (!Array.isArray(values) || values.length === 0) {
     return { date: meta.date || null, shift: meta.shift || null, blocks: [], warnings: ['Planilha vazia'] };
@@ -163,42 +163,29 @@ function parseRotation(values, meta = {}) {
       if (shift && !globalShift) globalShift = shift;
       if (date && !globalDate) globalDate = date;
 
-      // Detecta deslocamento entre as colunas do cabeçalho e as dos GPs.
-      // Cabeçalho: [data][turno][marca][07:00]... -> slots começam em firstSlotCol.
-      // GP:        [nome][nick][célula]...        -> dados começam após nome+nick.
-      // Nome e nick são SEMPRE as duas colunas imediatamente antes do
-      // primeiro horário. Isso vale tanto para as abas de turno (slots na
-      // col 2 → nome col 0, nick col 1) quanto para a Template TV, que tem
-      // ~17 colunas vazias à esquerda (slots na col 19 → nome col 17, nick 18).
       const firstSlotCol = slotCols[0];
       const nameCol = firstSlotCol - 2;
       const nickCol = firstSlotCol - 1;
-      const effectiveCols = slotCols;  // dados alinhados com o cabeçalho
+      const effectiveCols = slotCols;
 
       const presenters = [];
       let j = i + 1;
       while (j < values.length) {
         const r = values[j] || [];
-        if (isBlockHeader(r)) break;            // próximo bloco
-        if (isNoteRow(r)) { j++; continue; }     // pula notas
+        if (isBlockHeader(r) || looksLikeHeaderRow(r)) break;
+        if (isNoteRow(r)) { j++; continue; }
 
         const name = nameCol >= 0 ? s(r[nameCol]) : s(r[0]);
         const nick = nickCol >= 0 ? s(r[nickCol]) : s(r[1]);
         const cells = effectiveCols.map(c => normalizeCell(r[c]));
         const hasData = cells.some(c => c.type !== 'empty');
 
-        // pula linhas totalmente vazias
         if (!name && !nick && !hasData) { j++; continue; }
 
         presenters.push({ name, nick, cells });
         j++;
       }
 
-      // Shufflers: com a nova convenção, toda célula de trabalho tem texto
-      // (uma mesa, um par "6131/6132", ou ALL). Célula VAZIA dentro da faixa
-      // de trabalho (entre 1ª e última marcada) é provável esquecimento do SL
-      // → marca como "todo" (definir), tornando o erro VISÍVEL na TV/admin.
-      // B e X são preservados.
       if (brand === 'Shufflers') {
         for (const p of presenters) {
           let first = -1, last = -1;
@@ -213,6 +200,22 @@ function parseRotation(values, meta = {}) {
 
       blocks.push({ brand, shift, date, slots, presenters });
       i = j;
+    } else if (looksLikeHeaderRow(row)) {
+      // A linha parece cabeçalho (tem turno) mas NÃO virou bloco válido.
+      // Em vez de anexar as GPs ao bloco anterior (falha silenciosa que já
+      // sumiu com tabelas), registramos um aviso claro e visível.
+      const b = detectBrand(row);
+      const nSlots = findSlotColumns(row).length;
+      let msg;
+      if (b && nSlots < 2) {
+        msg = 'Tabela "' + b + '" não apareceu: a linha de HORÁRIOS do cabeçalho não está preenchida na planilha (esperado 00:00). Corrija a planilha.';
+      } else if (!b && nSlots >= 2) {
+        msg = 'Uma tabela não apareceu: o NOME do estúdio no cabeçalho não foi reconhecido — confira a grafia na planilha.';
+      } else {
+        msg = 'Cabeçalho de tabela incompleto na planilha (nome do estúdio e/ou horários ausentes). Corrija a planilha.';
+      }
+      warnings.push(msg);
+      i++;
     } else {
       i++;
     }
@@ -220,9 +223,6 @@ function parseRotation(values, meta = {}) {
 
   if (blocks.length === 0) warnings.push('Nenhum bloco de rotação detectado — verificar layout da planilha');
 
-  // Atribui um id único a cada bloco. "Shufflers" aparece mais de uma vez,
-  // então o nome da marca não basta para identificar — o id resolve isso.
-  // Primeira ocorrência: o próprio nome; demais: nome-2, nome-3...
   const brandSeq = {};
   for (const blk of blocks) {
     brandSeq[blk.brand] = (brandSeq[blk.brand] || 0) + 1;
@@ -238,10 +238,6 @@ function parseRotation(values, meta = {}) {
   };
 }
 
-/**
- * Dado o horário atual, retorna o índice do slot ativo de um bloco.
- * O slot ativo é o último cujo horário <= agora.
- */
 function activeSlotIndex(slots, now = new Date()) {
   const mins = now.getHours() * 60 + now.getMinutes();
   let active = -1;
